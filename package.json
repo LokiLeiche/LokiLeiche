@@ -1,0 +1,28 @@
+{
+  "name": "LokiLeiche-profile",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "SVG generator for my github profile",
+  "homepage": "https://github.com/LokiLeiche/LokiLeiche",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LokiLeiche/LokiLeiche"
+  },
+  "license": "MIT",
+  "author": "Loki",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "tsc && node dist/index.js"
+  },
+  "dependencies": {
+    "@octokit/rest": "^22.0.1",
+    "dotenv": "^17.4.2",
+    "ts-ascii-engine": "^0.0.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsx": "^4.23.1",
+    "typescript": "^6.0.3"
+  }
+}
