@@ -1,0 +1,61 @@
+name: Update profile SVG
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  HOSTING_BRANCH: svg-hosting
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      GITHUB_TOKEN: ${{ secrets.PROFILE_GENERATOR_TOKEN }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build SVGs
+        run: npm run start
+
+      - name: Publish SVG branch
+        run: |
+          if [ ! -f dist/terminal.svg ]; then
+            echo "dist/terminal.svg was not generated"
+            exit 1
+          fi
+
+          temp_svg=$(mktemp)
+          cp dist/terminal.svg "$temp_svg"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git switch --orphan "$HOSTING_BRANCH"
+          git clean -fdx
+          mkdir -p dist
+          cp "$temp_svg" dist/terminal.svg
+          git add dist/terminal.svg
+
+          if git diff --cached --quiet; then
+            echo "No SVG changes to commit."
+            exit 0
+          fi
+
+          git commit -m "chore: update hosted svg"
+          git push origin "$HOSTING_BRANCH" --force
