@@ -64,16 +64,60 @@ interface GraphQLResponse2 {
         target: {
             history: {
             pageInfo: { hasNextPage: boolean; endCursor: string };
-            nodes: Array<{ additions: number; deletions: number }>;
+            nodes: Array<{
+                oid: string;
+                additions: number;
+                deletions: number;
+            }>;
             };
         };
         } | null;
     } | null;
 }
 
-async function fetchRepoCommitLines(owner: string, name: string, emails: string[]): Promise<{ additions: number; deletions: number; }> {
+const f: string[] = [];
+
+function getLanguageFromExtension(filePath: string): string {
+    const ext = filePath.split('.').pop()?.toLowerCase() || 'unknown';
+    
+    const languageMap: { [key: string]: string } = {
+        ts: 'TS',
+        tsx: 'TS',
+        js: 'JS',
+        jsx: 'JS',
+        cjs: 'JS',
+        mjs: 'JS',
+        py: 'Python',
+        java: 'Java',
+        cpp: 'C++',
+        c: 'C',
+        cs: 'C#',
+        go: 'Go',
+        rs: 'Rust',
+        rb: 'Ruby',
+        php: 'PHP',
+        swift: 'Swift',
+        kt: 'Kotlin',
+        scala: 'Scala',
+        sql: 'SQL',
+        html: 'HTML',
+        css: 'CSS',
+        md: 'Markdown',
+        txt: 'Markdown', // technically not md but nicer to group
+        lua: 'Lua',
+        bat: 'Batch'
+    };
+    
+    if (!languageMap[ext] && !f.includes(ext)) {
+        f.push(ext);
+    }
+    return languageMap[ext] || 'Other';
+}
+
+async function fetchRepoCommitLines(owner: string, name: string, emails: string[]): Promise<{ additions: number; deletions: number; byLanguage: { [language: string]: { additions: number; deletions: number } } }> {
     let additions = 0;
     let deletions = 0;
+    const byLanguage: { [language: string]: { additions: number; deletions: number } } = {};
     let hasNextPage = true;
     let cursor: string | null = null;
 
@@ -91,6 +135,7 @@ async function fetchRepoCommitLines(owner: string, name: string, emails: string[
                                         endCursor
                                     }
                                     nodes {
+                                        oid
                                         additions
                                         deletions
                                     }
@@ -110,13 +155,34 @@ async function fetchRepoCommitLines(owner: string, name: string, emails: string[
         for (const commit of history.nodes) {
             additions += commit.additions;
             deletions += commit.deletions;
+
+            // Fetch file details for this commit using REST API
+            try {
+                const commitDetails = await octokit.rest.repos.getCommit({
+                    owner,
+                    repo: name,
+                    ref: commit.oid,
+                });
+
+                for (const file of commitDetails.data.files || []) {
+                    const language = getLanguageFromExtension(file.filename);
+                    if (!byLanguage[language]) {
+                        byLanguage[language] = { additions: 0, deletions: 0 };
+                    }
+                    byLanguage[language].additions += file.additions || 0;
+                    byLanguage[language].deletions += file.deletions || 0;
+                }
+            } catch (error) {
+                // If we can't fetch commit details, skip it
+                console.error(`Failed to fetch commit ${commit.oid} for ${owner}/${name}`);
+            }
         }
 
         hasNextPage = history.pageInfo.hasNextPage;
         cursor = history.pageInfo.endCursor;
     }
 
-    return { additions, deletions };
+    return { additions, deletions, byLanguage };
 }
 
 
@@ -127,15 +193,24 @@ export async function fetchUserLines() {
 
     let totalAdditions = 0;
     let totalDeletions = 0;
+    const byLanguage: { [language: string]: { additions: number; deletions: number } } = {};
 
     for (const repo of repos) {
         const stats = await fetchRepoCommitLines(repo.owner, repo.name, userEmails);
         totalAdditions += stats.additions;
         totalDeletions += stats.deletions;
-    }
 
+        for (const [language, langStats] of Object.entries(stats.byLanguage)) {
+            if (!byLanguage[language]) {
+                byLanguage[language] = { additions: 0, deletions: 0 };
+            }
+            byLanguage[language].additions += langStats.additions;
+            byLanguage[language].deletions += langStats.deletions;
+        }
+    }
     return {
         additions: totalAdditions,
         deletions: totalDeletions,
+        byLanguage,
     };
 }

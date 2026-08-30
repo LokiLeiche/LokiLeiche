@@ -14,6 +14,7 @@ interface ProfileStats {
     contributionsTotal: number;
     contributionsThisYear: number;
     lines: number;
+    linesByLanguage: { [language: string]: { additions: number; deletions: number } };
     publicReposLs: string[];
     contributedReposLs: string[];
 }
@@ -30,8 +31,53 @@ function generateSVG(stats: ProfileStats): string {
         { label: "Contributed Repositories", val: stats.contributedRepos.toString() },
         { label: "Contributions Total", val: stats.contributionsTotal.toString() },
         { label: `Contributions (${new Date().getFullYear()})`, val: stats.contributionsThisYear.toString() },
-        { label: "Lines written", val: stats.lines.toString() }
+        { label: "Lines written", val: stats.lines.toString() },
     ];
+
+    const languageToColor: { [key: string]: string } = {
+        TS: "#3178c6",
+        JS: "#f1e05a",
+        "C#": "#019226",
+        MD: "#7c7c7c",
+        Lua: "#000080",
+        Other: "#a0a0a0",
+        Python: "#3776ab",
+        Java: "#b07219",
+        CSS: "#663399"
+    };
+
+    const languagesPercent: { [language: string]: number } = {}
+    let totalCleaned = 0;
+    for (const [language, langStats] of Object.entries(stats.linesByLanguage)) {
+        const total = langStats.additions + langStats.deletions;
+        const percentage = Math.floor(((total / stats.lines)* 100) + 0.5);
+        
+        if (percentage < 1 || language == 'Other') {
+            delete stats.linesByLanguage[language];
+        } else {
+            totalCleaned += total;
+        }
+    }
+
+    delete stats.linesByLanguage["other"];
+    const languagesPercentSorted: {color: string, percent: number, language: string}[] = [];
+    for (const [language, langStats] of Object.entries(stats.linesByLanguage)) {
+        const total = langStats.additions + langStats.deletions;
+        const percentage = Math.floor(((total / totalCleaned)* 100) + 0.5);
+        languagesPercent[language] = percentage;
+        languagesPercentSorted.push({color: languageToColor[language], percent: percentage, language});
+    }
+
+    languagesPercentSorted.sort((a, b) => b.percent - a.percent);
+
+    const sortedComplete: {color: string, percent: number, total: number, language: string}[] = []
+    let total = 0;
+    for (let i=0; i<languagesPercentSorted.length; i++) {
+        total += languagesPercentSorted[i].percent;
+        sortedComplete[i] = {color: languagesPercentSorted[i].color, percent: languagesPercentSorted[i].percent, total, language: languagesPercentSorted[i].language};
+    }
+
+    statRows.push({ label: "Most used languages", val: sortedComplete.filter(e => e.percent >= 5).map(e =>  `<tspan fill="${e.color}">${e.language}</tspan>: ${e.percent}%`).join(', ') });
 
     const colorTheme = {
         top: ["#232627", "#ed003f", "#11d116", "#f67400", "#1d99f3", "#9b59b6", "#1abc9c", "#fcfcfc"],
@@ -53,46 +99,45 @@ function generateSVG(stats: ProfileStats): string {
     <text x="10" y="24" class="base-text"><tspan class="host">loki@github</tspan>:<tspan class="text-blue">~</tspan>$ fastfetch</text>
 
     <!-- Logo left column, svg copied as plain text with removed bg -->
-    <g transform="translate(-180, -30), scale(0.7, 0.7)">
+    <g transform="translate(-180, -20), scale(0.7, 0.7)">
         <svg id="Layer_2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 71.2963 71.2963"><g id="Components"><g id="_02b0fafc-c8de-4aee-abec-b07c7302e5ae_1"><rect width="71.2963" height="71.2963" style="stroke-width:0px;"/><path d="M38.8398,26.3877c-.7564,0-1.4247-.2844-2.0046-.8517-.58-.5673-.8699-1.2411-.8699-2.0228s.29-1.4569.8699-2.0242c.5799-.5673,1.2481-.8503,2.0046-.8503.7817,0,1.4569.283,2.0228.8503.5673.5673.8517,1.2425.8517,2.0242s-.2844,1.4555-.8517,2.0228c-.5659.5674-1.2411.8517-2.0228.8517ZM36.3435,48.3613l7.4987-18.91h4.9926l-7.4987,18.91h-4.9926ZM20.1652,37.5608l7.3628-8.1095h5.9382l-7.1471,7.9806,7.7144,10.9294h-5.742l-8.1263-10.8005Z" style="fill:#57f287; fill-rule:evenodd; stroke-width:0px;"/></g></g></svg>
     </g>
 
     <!-- Stats Right Column -->
-    <g transform="translate(200, 60)">
+    <g transform="translate(200, 50)">
         <text class="base-text"><tspan class="text-blue">loki</tspan>@<tspan class="text-blue">github</tspan></text>
         <line x1="0" y1="11" x2="400" y2="11" stroke="#fcfcfc" stroke-width="1" />
         ${statRows.map((row, i) => `
-        <g transform="translate(0, ${(i+1) * 22})">
-            <text x="0" y="12" class="base-text"><tspan class="text-blue">${escapeXml(row.label)}</tspan>:
-                <tspan class="base-text">${escapeXml(row.val)}</tspan>
-            </text>
-        </g>
+            <g transform="translate(0, ${(i+1) * 22})">
+                <text x="0" y="12" class="base-text"><tspan class="text-blue">${escapeXml(row.label)}</tspan>:
+                    <tspan class="base-text">${row.val}</tspan>
+                </text>
+            </g>
         `).join('')}
 
         <!-- Color Theme -->
-        <g transform="translate(0, 210)">
-            ${colorTheme.top.map((color, i) => `
-                <rect x="${i*20}" y="0" width="20" height="20" fill="${color}" />
-            `)}
-            ${colorTheme.bottom.map((color, i) => `
-                <rect x="${i*20}" y="20" width="20" height="20" fill="${color}" />
-            `)}
+        <g transform="translate(0, 220)">
+            ${colorTheme.top.map((color, i) =>
+                `<rect x="${i*20}" y="0" width="20" height="20" fill="${color}" />`
+            )}
+            ${colorTheme.bottom.map((color, i) =>
+                `<rect x="${i*20}" y="20" width="20" height="20" fill="${color}" />`
+            )}
         </g>
     </g>
-
 
     <!-- LS command -->
     <text x="10" y="340" class="base-text"><tspan class="host">loki@github</tspan>:<tspan class="text-blue">~</tspan>$ ls</text>
 
-    <g transform="translate(10, 364)">
+    <g transform="translate(10, 360)">
         ${(() => {
             const lsOutput = generateLsOutput(stats.publicReposLs);
             return `
-            ${lsOutput.svg}
-            <text x="0" y="${lsOutput.rows * 24}" class="base-text"><tspan class="host">loki@github</tspan>:<tspan class="text-blue">~</tspan>$ ls ./Contributions</text>
-            <g transform="translate(0, ${(lsOutput.rows + 1) * 24})">
-                ${generateLsOutput(stats.contributedReposLs).svg}
-            </g>
+                ${lsOutput.svg}
+                <text x="0" y="${(lsOutput.rows * 18) + 2}" class="base-text"><tspan class="host">loki@github</tspan>:<tspan class="text-blue">~</tspan>$ ls ./Contributions</text>
+                <g transform="translate(0, ${((lsOutput.rows + 1) * 18) + 4})">
+                    ${generateLsOutput(stats.contributedReposLs).svg}
+                </g>
             `
         })()}
         
@@ -114,6 +159,7 @@ async function main() {
         contributionsTotal: contributions.allTime,
         contributionsThisYear: contributions.thisYear,
         lines: lines.additions + lines.deletions,
+        linesByLanguage: lines.byLanguage,
         publicReposLs: lsRepos,
         contributedReposLs: repos.contributed.filter((repo) => !repo.isPrivate).map((repo) => repo.fullName)
     };

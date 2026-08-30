@@ -37,15 +37,16 @@ export function generateLsOutput(publicRepos: string[]) {
         return columnWidths.slice(0, column).reduce((sum, currentWidth) => sum + currentWidth, 0);
     });
 
-    return { svg: sortedRepos
-        .map((repo, index) => {
-        const row = Math.floor(index / columns);
-        const column = index % columns;
-        const x = columnOffsets[column];
-        const y = row * 18;
+    return { 
+        svg: sortedRepos.map((repo, index) => {
+            const row = Math.floor(index / columns);
+            const column = index % columns;
+            const x = columnOffsets[column];
+            const y = row * 18;
 
-        return `<text x="${x}" y="${y}" class="base-text"><tspan class="text-blue">${escapeXml(repo)}</tspan></text>`;
+            return `<text x="${x}" y="${y}" class="base-text"><tspan class="text-blue">${escapeXml(repo)}</tspan></text>`;
         })
         .join('\n    '),
-        rows: Math.floor(sortedRepos.length / columns) };
+        rows: Math.ceil(sortedRepos.length / columns)
+    };
 }
