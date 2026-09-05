@@ -102,8 +102,8 @@ function getLanguageFromExtension(filePath: string): string {
         sql: 'SQL',
         html: 'HTML',
         css: 'CSS',
-        md: 'Markdown',
-        txt: 'Markdown', // technically not md but nicer to group
+        md: 'MD',
+        txt: 'MD', // technically not md but nicer to group
         lua: 'Lua',
         bat: 'Batch'
     };
