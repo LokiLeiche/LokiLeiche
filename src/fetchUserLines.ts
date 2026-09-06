@@ -81,12 +81,12 @@ function getLanguageFromExtension(filePath: string): string {
     const ext = filePath.split('.').pop()?.toLowerCase() || 'unknown';
     
     const languageMap: { [key: string]: string } = {
-        ts: 'TS',
-        tsx: 'TS',
-        js: 'JS',
-        jsx: 'JS',
-        cjs: 'JS',
-        mjs: 'JS',
+        ts: 'TypeScript',
+        tsx: 'TypeScript',
+        js: 'JavaScript',
+        jsx: 'JavaScript',
+        cjs: 'JavaScript',
+        mjs: 'JavaScript',
         py: 'Python',
         java: 'Java',
         cpp: 'C++',
@@ -102,8 +102,8 @@ function getLanguageFromExtension(filePath: string): string {
         sql: 'SQL',
         html: 'HTML',
         css: 'CSS',
-        md: 'MD',
-        txt: 'MD', // technically not md but nicer to group
+        md: 'Markdown',
+        txt: 'Markdown', // technically not md but nicer to group
         lua: 'Lua',
         bat: 'Batch'
     };

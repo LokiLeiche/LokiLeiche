@@ -35,10 +35,10 @@ function generateSVG(stats: ProfileStats): string {
     ];
 
     const languageToColor: { [key: string]: string } = {
-        TS: "#3178c6",
-        JS: "#f1e05a",
+        TypeScript: "#3178c6",
+        JavaScript: "#f1e05a",
         "C#": "#019226",
-        MD: "#7c7c7c",
+        Markdown: "#7c7c7c",
         Lua: "#000080",
         Other: "#a0a0a0",
         Python: "#3776ab",
@@ -77,7 +77,23 @@ function generateSVG(stats: ProfileStats): string {
         sortedComplete[i] = {color: languagesPercentSorted[i].color, percent: languagesPercentSorted[i].percent, total, language: languagesPercentSorted[i].language};
     }
 
-    statRows.push({ label: "Most used languages", val: sortedComplete.filter(e => e.percent >= 5).map(e =>  `<tspan fill="${e.color}">${e.language}</tspan>: ${e.percent}%`).join(', ') });
+    // MAX 40 CHARS ON THAT LINE
+    //statRows.push({ label: "Most used languages", val: sortedComplete.filter(e => e.percent >= 5).map(e =>  `<tspan fill="${e.color}">${e.language}</tspan>: ${e.percent}%`).join(', ') });
+    let mostUsedLanguagesStr = "";
+    let hasLanguagesWrapped = false;
+    for (let i=0; i<sortedComplete.length; i++) {
+        const languageString = `<tspan fill="${sortedComplete[i].color}">${sortedComplete[i].language}</tspan>: ${sortedComplete[i].percent}%`
+        const cleanLanguageString = languageString.replace(/<[^>]+>/g, '');
+        const cleanMostUsedString = mostUsedLanguagesStr.replace(/<[^>]+>/g, '');
+        console.log(cleanLanguageString, cleanMostUsedString);
+        if (cleanMostUsedString.length + cleanLanguageString.length > 40 && !hasLanguagesWrapped) {
+            hasLanguagesWrapped = true;
+            mostUsedLanguagesStr += `</tspan></text><text x="0" y="34" class="base-text"><tspan class="base-text">`;
+        }
+        mostUsedLanguagesStr += languageString;
+        if (i<sortedComplete.length-1) mostUsedLanguagesStr += ", ";
+    }
+    statRows.push({ label: "Most used languages", val: mostUsedLanguagesStr });
 
     const colorTheme = {
         top: ["#232627", "#ed003f", "#11d116", "#f67400", "#1d99f3", "#9b59b6", "#1abc9c", "#fcfcfc"],
@@ -116,7 +132,7 @@ function generateSVG(stats: ProfileStats): string {
         `).join('')}
 
         <!-- Color Theme -->
-        <g transform="translate(0, 220)">
+        <g transform="translate(0, ${hasLanguagesWrapped ? "242" : "220"})">
             ${colorTheme.top.map((color, i) =>
                 `<rect x="${i*20}" y="0" width="20" height="20" fill="${color}" />`
             )}
@@ -127,9 +143,9 @@ function generateSVG(stats: ProfileStats): string {
     </g>
 
     <!-- LS command -->
-    <text x="10" y="340" class="base-text"><tspan class="host">loki@github</tspan>:<tspan class="text-blue">~</tspan>$ ls</text>
+    <text x="10" y="${hasLanguagesWrapped ? "362" : "340"}" class="base-text"><tspan class="host">loki@github</tspan>:<tspan class="text-blue">~</tspan>$ ls</text>
 
-    <g transform="translate(10, 360)">
+    <g transform="translate(10, ${hasLanguagesWrapped ? "382" : "360"})">
         ${(() => {
             const lsOutput = generateLsOutput(stats.publicReposLs);
             return `
