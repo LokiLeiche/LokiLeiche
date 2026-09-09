@@ -44,7 +44,7 @@ export async function fetchUserRepos() {
             viewer {
                 repositoriesContributedTo(
                     first: 100
-                    contributionTypes: [COMMIT, PULL_REQUEST, PULL_REQUEST_REVIEW]
+                    contributionTypes: [COMMIT]
                     includeUserRepositories: false
                 ) {
                     nodes {

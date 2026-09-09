@@ -85,7 +85,6 @@ function generateSVG(stats: ProfileStats): string {
         const languageString = `<tspan fill="${sortedComplete[i].color}">${sortedComplete[i].language}</tspan>: ${sortedComplete[i].percent}%`
         const cleanLanguageString = languageString.replace(/<[^>]+>/g, '');
         const cleanMostUsedString = mostUsedLanguagesStr.replace(/<[^>]+>/g, '');
-        console.log(cleanLanguageString, cleanMostUsedString);
         if (cleanMostUsedString.length + cleanLanguageString.length > 40 && !hasLanguagesWrapped) {
             hasLanguagesWrapped = true;
             mostUsedLanguagesStr += `</tspan></text><text x="0" y="34" class="base-text"><tspan class="base-text">`;
@@ -100,7 +99,7 @@ function generateSVG(stats: ProfileStats): string {
         bottom: ["#7f8c8d", "#c0392b", "#1cdc9a", "#fdbc4b", "#3daee9", "#8e44ad", "#16a085", "#ffffff"]
     }
 
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="530" viewBox="0 0 800 530" fill="none">
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 530" fill="none">
     <style>
         .bg { fill: ${bg}; stroke: ${border}; stroke-width: 1px; rx: 6px; }
         .host { font: 14px "Hack", monospace, Consolas; fill: #50e423; }
