@@ -43,7 +43,8 @@ function generateSVG(stats: ProfileStats): string {
         Other: "#a0a0a0",
         Python: "#3776ab",
         Java: "#b07219",
-        CSS: "#663399"
+        CSS: "#663399",
+        HTML: "#E34C26"
     };
 
     const languagesPercent: { [language: string]: number } = {}
