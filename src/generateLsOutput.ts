@@ -1,10 +1,10 @@
 import { escapeXml } from './escapeXML.js';
 
 // this is some fucked up math that I really don't wont to deal with, had copilot write it tbh
-export function generateLsOutput(publicRepos: string[]) {
-    if (publicRepos.length === 0) return { svg: '', rows: 0};
+export function generateLsOutput(repos: string[]) {
+    if (repos.length === 0) return { svg: '', rows: 0};
 
-    const sortedRepos = [...publicRepos].sort((left, right) => left.localeCompare(right));
+    const sortedRepos = [...repos].sort((left, right) => left.localeCompare(right));
     const maxWidth = 750;
     const charWidth = 8;
     const minColumnWidth = 160;
