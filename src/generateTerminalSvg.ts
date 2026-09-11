@@ -2,7 +2,7 @@ import type { ProfileStats } from './types.d.ts'
 import { generateLsOutput } from './generateLsOutput.js';
 import { escapeXml } from './escapeXML.js';
 
-export function generateFastfetchSVG(stats: ProfileStats): [string, boolean] {
+export function generateFastfetchSVG(stats: ProfileStats, forBrowser: boolean): [string, boolean] {
     const statRows = [
         { label: "OS", val: "Linux, Android, Windows 11"},
         { label: "IDE", val: "VSCode, IntelliJ" },
@@ -81,13 +81,19 @@ export function generateFastfetchSVG(stats: ProfileStats): [string, boolean] {
 
 
     return [`<g>
+        <style>
+            .host { font: 14px "Hack", monospace, Consolas; fill: #50e423; }
+            .base-text { font: 14px "Hack", monospace, Consolas; fill: #fcfcfc }
+            .text-blue { font: 14px "Hack", monospace, Consolas; fill: #3daee9 }
+        </style>
+
         <!-- Logo left column, svg copied as plain text with removed bg -->
-        <g transform="translate(-130, 0), scale(0.6, 0.6)">
+        <g transform="${forBrowser ? "translate(-300, -20)" : "translate(-130, 0), scale(0.6, 0.6)"}">
             <svg id="Layer_2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 71.2963 71.2963"><g id="Components"><g id="_02b0fafc-c8de-4aee-abec-b07c7302e5ae_1"><rect width="71.2963" height="71.2963" fill="none" style="stroke-width:0px;"/><path d="M38.8398,26.3877c-.7564,0-1.4247-.2844-2.0046-.8517-.58-.5673-.8699-1.2411-.8699-2.0228s.29-1.4569.8699-2.0242c.5799-.5673,1.2481-.8503,2.0046-.8503.7817,0,1.4569.283,2.0228.8503.5673.5673.8517,1.2425.8517,2.0242s-.2844,1.4555-.8517,2.0228c-.5659.5674-1.2411.8517-2.0228.8517ZM36.3435,48.3613l7.4987-18.91h4.9926l-7.4987,18.91h-4.9926ZM20.1652,37.5608l7.3628-8.1095h5.9382l-7.1471,7.9806,7.7144,10.9294h-5.742l-8.1263-10.8005Z" style="fill:#57f287; fill-rule:evenodd; stroke-width:0px;"/></g></g></svg>
         </g>
 
         <!-- Stats Right Column -->
-        <g transform="translate(220, 110)">
+        <g transform="translate(220, ${forBrowser ? "20" : "110"})">
             <text class="base-text"><tspan class="text-blue">loki</tspan>@<tspan class="text-blue">github</tspan></text>
             <line x1="0" y1="11" x2="400" y2="11" stroke="#fcfcfc" stroke-width="1" />
             ${statRows.map((row, i) => `
@@ -113,7 +119,7 @@ export function generateFastfetchSVG(stats: ProfileStats): [string, boolean] {
 }
 
 export function generateTerminalSVG(stats: ProfileStats): string {
-    const [statsSvg, hasWrapped] = generateFastfetchSVG(stats);
+    const [statsSvg, hasWrapped] = generateFastfetchSVG(stats, false);
 
     return `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="700" viewBox="0 0 800 700" role="img">
     <title>Github Stats</title>

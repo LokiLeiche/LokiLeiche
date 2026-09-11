@@ -15,7 +15,7 @@ export async function getTerminalSVG() {
 
 export async function getStatsSVG() {
     const data = await collectGithubData();
-    const svg = generateFastfetchSVG(data);
+    const svg = generateFastfetchSVG(data, true);
     return svg;
 }
 
