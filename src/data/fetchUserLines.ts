@@ -64,7 +64,6 @@ async function fetchRelevantRepoList(username: string): Promise<RepoReference[]>
             break;
         }
     }
-    console.log(totalCommits);
     console.log(repos);
 
     return [...repos.values()];
@@ -211,8 +210,10 @@ export async function fetchUserLines() {
     const byLanguage: { [language: string]: { additions: number; deletions: number } } = {};
     var commitMap: Map<string, boolean> = new Map(); // to avoid duplicates
 
+    let curr = 0;
     for (const repo of repos) {
-        console.log(`Checking Repo ${repo.owner}/${repo.name}`);
+        curr += 1;
+        console.log(`Checking Repo ${curr}/${repos.length} ${repo.owner}/${repo.name}`);
         const stats = await fetchRepoCommitLines(repo.owner, repo.name, userEmails, commitMap);
         commitMap = stats.commitMap;
         totalAdditions += stats.additions;
