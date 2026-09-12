@@ -1,5 +1,5 @@
 {
-  "name": "LokiLeiche-profile",
+  "name": "@LokiLeiche/terminal-generator",
   "version": "1.0.0",
   "type": "module",
   "description": "SVG generator for my github profile",
@@ -8,9 +8,15 @@
     "type": "git",
     "url": "git+https://github.com/LokiLeiche/LokiLeiche"
   },
-  "license": "MIT",
   "author": "Loki",
-  "main": "dist/index.js",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "start": "tsc && node dist/index.js"
