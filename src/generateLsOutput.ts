@@ -1,11 +1,11 @@
 import { escapeXml } from './escapeXML.js';
 
 // this is some fucked up math that I really don't wont to deal with, had copilot write it tbh
-export function generateLsOutput(repos: string[]) {
+export function generateLsOutput(repos: string[], forBrowser: boolean) {
     if (repos.length === 0) return { svg: '', rows: 0};
 
     const sortedRepos = [...repos].sort((left, right) => left.localeCompare(right));
-    const maxWidth = 750;
+    const maxWidth = forBrowser ? 800 : 750;
     const charWidth = 8;
     const minColumnWidth = 160;
     const padding = 32;
@@ -38,11 +38,15 @@ export function generateLsOutput(repos: string[]) {
     });
 
     return { 
-        svg: sortedRepos.map((repo, index) => {
+        svg: 
+            `<style>
+                .text-blue { font: 14px "Hack", monospace, Consolas; fill: #3daee9 }
+            </style>` +
+            sortedRepos.map((repo, index) => {
             const row = Math.floor(index / columns);
             const column = index % columns;
             const x = columnOffsets[column];
-            const y = row * 18;
+            const y = forBrowser ? (14 + (row * 18)) : (row * 18);
 
             return `<text x="${x}" y="${y}" class="base-text"><tspan class="text-blue">${escapeXml(repo)}</tspan></text>`;
         })

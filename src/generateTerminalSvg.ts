@@ -175,8 +175,8 @@ export function generateTerminalSVG(stats: ProfileStats): string {
 
     <g transform="translate(15, ${hasWrapped ? "440" : "418"})">
         ${(() => {
-            const lsOutput = generateLsOutput(stats.publicReposLs);
-            const lsContribOutput = generateLsOutput(stats.contributedReposLs);
+            const lsOutput = generateLsOutput(stats.publicReposLs, false);
+            const lsContribOutput = generateLsOutput(stats.contributedReposLs, false);
             return `
                 ${lsOutput.svg}
                 <text x="0" y="${(lsOutput.rows * 18) + 2}" class="base-text"><tspan class="host">loki@github</tspan>:<tspan class="text-blue">~</tspan>$ ls ./Contributions</text>

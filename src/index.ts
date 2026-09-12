@@ -29,8 +29,8 @@ export async function getRepos() {
     return {owned, contributed};
 }
 
-export async function generateLsOutputss(directories: string[]) {
-    const output = generateLsOutputInternal(directories);
+export async function generateLsOutputs(directories: string[]) {
+    const output = generateLsOutputInternal(directories, true);
     return output;
 }
 
