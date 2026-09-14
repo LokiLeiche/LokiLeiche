@@ -8,7 +8,7 @@ export function generateLsOutput(repos: string[], forBrowser: boolean) {
     const maxWidth = forBrowser ? 800 : 750;
     const charWidth = 8;
     const minColumnWidth = 160;
-    const padding = 32;
+    const padding = 40;
     const fitColumns = (): { columns: number; columnWidths: number[] } => {
         const maxCandidateColumns = Math.max(1, Math.min(sortedRepos.length, Math.floor(maxWidth / minColumnWidth)));
 

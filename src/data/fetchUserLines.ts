@@ -4,6 +4,12 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+const REPOS_TO_IGNORE: string[] = [ // repos that don't show up under contributions. Includes forks that are not marked as forks and useless old stuff
+    "Krowx1337/fivem", "KeivanHy/fivem", "kCore-framework/docs", "Aweetumn-LLC/FiveM-NPC-Creator",
+    "forzayt/fivem", "MrKaysDev/kMulticharacter", "Mathu-lmn/kCore",
+    "Nichols-HomeLab/steam-lancache-prefill",
+];
+
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
 interface RepoReference {
@@ -11,8 +17,9 @@ interface RepoReference {
     name: string;
 }
 
-async function fetchRelevantRepoList(username: string): Promise<RepoReference[]> {
+async function fetchRelevantRepoList(username: string): Promise<{publicRepos: RepoReference[], committedRepos: RepoReference[]}> {
     const repos = new Map<string, RepoReference>();
+    const publcRepos = new Map<string, RepoReference>();
 
     // This includes owned repositories and repositories the token can access,
     // including private repositories that are not returned by commit search.
@@ -32,6 +39,13 @@ async function fetchRelevantRepoList(username: string): Promise<RepoReference[]>
             owner: repo.owner.login,
             name: repo.name,
         });
+
+        if (!repo.private && !REPOS_TO_IGNORE.includes(repo.full_name)) {
+            publcRepos.set(repo.full_name, {
+                owner: repo.owner.login,
+                name: repo.name,
+            });
+        }
     }
 
     // Unlike repositoriesContributedTo, commit search is not limited to the
@@ -58,6 +72,13 @@ async function fetchRelevantRepoList(username: string): Promise<RepoReference[]>
                 owner: commit.repository.owner.login,
                 name: commit.repository.name,
             });
+
+            if (!commit.repository.private && !REPOS_TO_IGNORE.includes(fullName)) {
+                publcRepos.set(fullName, {
+                    owner: commit.repository.owner.login,
+                    name: commit.repository.name,
+                });
+            }
         }
 
         if (response.data.items.length < 100 || page * 100 >= response.data.total_count) {
@@ -66,11 +87,13 @@ async function fetchRelevantRepoList(username: string): Promise<RepoReference[]>
     }
     console.log(repos);
 
-    return [...repos.values()];
+    return {committedRepos: [...repos.values()], publicRepos: [...publcRepos.values()]};
 }
 
 interface GraphQLResponse2 {
     repository: {
+        isFork: boolean;
+        isPrivate: boolean;
         defaultBranchRef: {
         target: {
             history: {
@@ -211,9 +234,9 @@ export async function fetchUserLines() {
     var commitMap: Map<string, boolean> = new Map(); // to avoid duplicates
 
     let curr = 0;
-    for (const repo of repos) {
+    for (const repo of repos.committedRepos) {
         curr += 1;
-        console.log(`Checking Repo ${curr}/${repos.length} ${repo.owner}/${repo.name}`);
+        console.log(`Checking Repo ${curr}/${repos.committedRepos.length} ${repo.owner}/${repo.name}`);
         const stats = await fetchRepoCommitLines(repo.owner, repo.name, userEmails, commitMap);
         commitMap = stats.commitMap;
         totalAdditions += stats.additions;
@@ -232,5 +255,6 @@ export async function fetchUserLines() {
         additions: totalAdditions,
         deletions: totalDeletions,
         byLanguage,
+        publicRepos: repos.publicRepos
     };
 }
