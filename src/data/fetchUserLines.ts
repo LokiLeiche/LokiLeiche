@@ -4,112 +4,8 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const REPOS_TO_IGNORE: string[] = [ // repos that don't show up under contributions. Includes forks that are not marked as forks and useless old stuff
-    "Krowx1337/fivem", "KeivanHy/fivem", "kCore-framework/docs", "Aweetumn-LLC/FiveM-NPC-Creator",
-    "forzayt/fivem", "MrKaysDev/kMulticharacter", "Mathu-lmn/kCore",
-    "Nichols-HomeLab/steam-lancache-prefill",
-];
-
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
-interface RepoReference {
-    owner: string;
-    name: string;
-}
-
-async function fetchRelevantRepoList(username: string): Promise<{publicRepos: RepoReference[], committedRepos: RepoReference[]}> {
-    const repos = new Map<string, RepoReference>();
-    const publcRepos = new Map<string, RepoReference>();
-
-    // This includes owned repositories and repositories the token can access,
-    // including private repositories that are not returned by commit search.
-    const accessibleRepos = await octokit.paginate(
-        octokit.rest.repos.listForAuthenticatedUser,
-        {
-            visibility: "all",
-            affiliation: "owner,collaborator",
-            per_page: 100,
-        }
-    );
-
-    for (const repo of accessibleRepos) {
-        if (repo.fork) continue;
-
-        repos.set(repo.full_name, {
-            owner: repo.owner.login,
-            name: repo.name,
-        });
-
-        if (!repo.private && !REPOS_TO_IGNORE.includes(repo.full_name)) {
-            publcRepos.set(repo.full_name, {
-                owner: repo.owner.login,
-                name: repo.name,
-            });
-        }
-    }
-
-    // Unlike repositoriesContributedTo, commit search is not limited to the
-    // contribution-graph repository connection. GitHub caps search results at
-    // 1,000 commits, but one repository is only added once to this map.
-    let totalCommits = 0;
-    for (let page = 1; page <= 10; page += 1) {
-        const response = await octokit.rest.search.commits({
-            q: `author:${username}`,
-            per_page: 100,
-            page,
-        });
-
-        for (const commit of response.data.items) {
-            // Do not treat an upstream merge commit copied into a fork as a
-            // contribution to that fork.
-            if (commit.commit.message.startsWith("Merge ")) continue;
-
-            totalCommits = totalCommits + 1;
-            const fullName = commit.repository?.full_name;
-            if (!fullName || !commit.repository.owner?.login) continue;
-
-            repos.set(fullName, {
-                owner: commit.repository.owner.login,
-                name: commit.repository.name,
-            });
-
-            if (!commit.repository.private && !REPOS_TO_IGNORE.includes(fullName)) {
-                publcRepos.set(fullName, {
-                    owner: commit.repository.owner.login,
-                    name: commit.repository.name,
-                });
-            }
-        }
-
-        if (response.data.items.length < 100 || page * 100 >= response.data.total_count) {
-            break;
-        }
-    }
-    console.log(repos);
-
-    return {committedRepos: [...repos.values()], publicRepos: [...publcRepos.values()]};
-}
-
-interface GraphQLResponse2 {
-    repository: {
-        isFork: boolean;
-        isPrivate: boolean;
-        defaultBranchRef: {
-        target: {
-            history: {
-            pageInfo: { hasNextPage: boolean; endCursor: string };
-            nodes: Array<{
-                oid: string;
-                additions: number;
-                deletions: number;
-            }>;
-            };
-        };
-        } | null;
-    } | null;
-}
-
-const f: string[] = [];
 
 function getLanguageFromExtension(filePath: string): string {
     const ext = filePath.split('.').pop()?.toLowerCase() || 'unknown';
@@ -139,31 +35,103 @@ function getLanguageFromExtension(filePath: string): string {
         md: 'Markdown',
         txt: 'Markdown', // technically not md but nicer to group
         lua: 'Lua',
+        qml: 'QML',
+        ino: 'C++' // not really, but almost the same thing so group it
     };
-    
-    if (!languageMap[ext] && !f.includes(ext)) {
-        f.push(ext);
+
+    return languageMap[ext] || "other";
+}
+
+
+interface GraphQLBranches {
+    repository: {
+        refs: {
+            pageInfo: {
+                hasNextPage: boolean,
+                endCursor: string
+            }
+            nodes: {
+                name: string
+            }[]
+        }
     }
-    return languageMap[ext] || 'Other';
+}
+
+async function getBranches(owner: string, repo: string) {
+    let hasMoreBranches = true;
+    let cursor: string | null = null;
+    const branches: string[] = [];
+    while (hasMoreBranches) {
+        const res: GraphQLBranches = await octokit.graphql<GraphQLBranches>(
+            `
+            query ($owner: String!, $name: String!, $cursor: String) {
+                repository(owner: $owner, name: $name) {
+                    refs(refPrefix: "refs/heads/", first: 100, after: $cursor) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        nodes {
+                            name
+                        }
+                    }
+                }
+            }
+            `,
+            {owner, name: repo, cursor}
+        )
+
+        for (let i=0; i<res.repository.refs.nodes.length; i++) {
+            const branchName = res.repository.refs.nodes[i].name;
+            if (!branches.includes(branchName)) branches.push(branchName);
+        }
+        hasMoreBranches = res.repository.refs.pageInfo.hasNextPage;
+        cursor = res.repository.refs.pageInfo.endCursor;
+    }
+
+    return branches;
+}
+
+interface GraphQLCommits {
+    repository: {
+        ref: {
+            target: {
+                history: {
+                    pageInfo: {
+                        hasNextPage: boolean,
+                        endCursor: string
+                    },
+                    nodes: {
+                        oid: string
+                        additions: number
+                        deletions: number
+                    }[]
+                }
+            }
+        }
+    }
 }
 
 async function fetchRepoCommitLines(owner: string, name: string, emails: string[], commitMap: Map<string, boolean>): Promise<{ additions: number; deletions: number; byLanguage: { [language: string]: { additions: number; deletions: number } }, commitMap: Map<string, boolean> }> {
+    const branches = await getBranches(owner, name);
     let additions = 0;
     let deletions = 0;
     const byLanguage: { [language: string]: { additions: number; deletions: number } } = {};
+    
+    for (let i=0; i<branches.length; i++) {
+        const branch = branches[i];
     let hasNextPage = true;
     let cursor: string | null = null;
 
     while (hasNextPage) {
-        await new Promise((resolve) => setTimeout(resolve, 500)); // timeout for testing with rate limits
-        const response: GraphQLResponse2 = await octokit.graphql<GraphQLResponse2>(
+            const response: GraphQLCommits = await octokit.graphql<GraphQLCommits>(
             `
-            query ($owner: String!, $name: String!, $emails: [String!]!, $cursor: String) {
+                query ($owner: String!, $name: String!, $emails: [String!]!, $cursor: String, $branch: String!) {
                 repository(owner: $owner, name: $name) {
-                    defaultBranchRef {
+                        ref(qualifiedName: $branch) {
                         target {
                             ... on Commit {
-                                history(first: 100, after: $cursor, author: { emails: $emails }) {
+                                    history(first: 100 after: $cursor, author: { emails: $emails }) {
                                     pageInfo {
                                         hasNextPage
                                         endCursor
@@ -180,13 +148,14 @@ async function fetchRepoCommitLines(owner: string, name: string, emails: string[
                 }
             }
             `,
-            { owner, name, emails, cursor }
+                { owner, name, emails, cursor, branch: `refs/heads/${branch}` }
         );
 
-        const history = response.repository?.defaultBranchRef?.target?.history;
+            const history = response.repository.ref.target.history
         if (!history) break;
 
         for (const commit of history.nodes) {
+
             // Fetch file details for this commit using REST API
             try {
                 const commitDetails = await octokit.rest.repos.getCommit({
@@ -194,7 +163,7 @@ async function fetchRepoCommitLines(owner: string, name: string, emails: string[
                     repo: name,
                     ref: commit.oid,
                 });
-                if (commitMap.get(commitDetails.data.sha)) {
+                    if (commitMap.get(commitDetails.data.sha) || (owner.toLowerCase() === "lokileiche" && commitDetails.data.commit.message.startsWith("Merge branch '"))) {
                     continue;
                 }
                 commitMap.set(commitDetails.data.sha, true);
@@ -223,10 +192,8 @@ async function fetchRepoCommitLines(owner: string, name: string, emails: string[
 }
 
 
-export async function fetchUserLines() {
-    const username = "LokiLeiche";
+export async function fetchUserLines(repositories: string[]) {
     const userEmails = await fetchUserEmails();
-    const repos = await fetchRelevantRepoList(username);
 
     let totalAdditions = 0;
     let totalDeletions = 0;
@@ -234,10 +201,10 @@ export async function fetchUserLines() {
     var commitMap: Map<string, boolean> = new Map(); // to avoid duplicates
 
     let curr = 0;
-    for (const repo of repos.committedRepos) {
+    for (let i=0; i<repositories.length; i++) {
         curr += 1;
-        console.log(`Checking Repo ${curr}/${repos.committedRepos.length} ${repo.owner}/${repo.name}`);
-        const stats = await fetchRepoCommitLines(repo.owner, repo.name, userEmails, commitMap);
+        console.log(`Checking Repo ${curr}/${repositories.length} ${repositories[i]}`);
+        const stats = await fetchRepoCommitLines(repositories[i].split("/")[0], repositories[i].split("/")[1], userEmails, commitMap);
         commitMap = stats.commitMap;
         totalAdditions += stats.additions;
         totalDeletions += stats.deletions;
@@ -254,7 +221,6 @@ export async function fetchUserLines() {
     return {
         additions: totalAdditions,
         deletions: totalDeletions,
-        byLanguage,
-        publicRepos: repos.publicRepos
+        byLanguage
     };
 }

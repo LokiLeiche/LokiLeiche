@@ -7,6 +7,7 @@ const octokit = new Octokit({
     auth: process.env.GITHUB_TOKEN,
 });
 
+
 export async function fetchUserContributions() {
     const userProfile = await octokit.graphql<{
         viewer: {

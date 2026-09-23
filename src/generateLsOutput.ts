@@ -1,10 +1,15 @@
 import { escapeXml } from './escapeXML.js';
 
+const EXCLUDED_REPOS: string[] = ["kCore-framework/docs", "Mathu-lmn/kCore", "MrKaysDev/kMulticharacter"]; // repos to exclude in the lsoutput. Stuff like irrelevant repos, forks that aren't marked as forks, etc.
+
 // this is some fucked up math that I really don't wont to deal with, had copilot write it tbh
 export function generateLsOutput(repos: string[], forBrowser: boolean) {
     if (repos.length === 0) return { svg: '', rows: 0};
 
-    const sortedRepos = [...repos].sort((left, right) => left.localeCompare(right));
+    let sortedRepos = [...repos].sort((left, right) => left.localeCompare(right)).filter(repo => !EXCLUDED_REPOS.includes(repo));
+    if (sortedRepos.includes("Contributions")) { // ensure contributions is always the first entry
+        sortedRepos = ["Contributions", ...sortedRepos.filter(repo => repo != "Contributions")] 
+    }
     const maxWidth = forBrowser ? 800 : 750;
     const charWidth = 8;
     const minColumnWidth = 160;
