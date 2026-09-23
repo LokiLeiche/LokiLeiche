@@ -15,7 +15,7 @@ export async function getTerminalSVG(): Promise<string> {
     return svg;
 }
 
-export async function getStatsSVG(): Promise<[string, boolean, {owned: string[], contributed: string[]}]> {
+export async function getStatsSVG(): Promise<[string, number, {owned: string[], contributed: string[]}]> {
     const data = await collectGithubData();
     const svg = generateFastfetchSVG(data, true);
     return [svg[0], svg[1], {owned: data.publicReposLs, contributed: data.contributedReposLs}];

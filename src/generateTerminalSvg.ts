@@ -2,7 +2,7 @@ import type { ProfileStats } from './types.d.ts'
 import { generateLsOutput } from './generateLsOutput.js';
 import { escapeXml } from './escapeXML.js';
 
-export function generateFastfetchSVG(stats: ProfileStats, forBrowser: boolean): [string, boolean] {
+export function generateFastfetchSVG(stats: ProfileStats, forBrowser: boolean): [string, number] {
     const statRows = [
         { label: "OS", val: "Linux, Android, Windows 11"},
         { label: "IDE", val: "VSCode, IntelliJ" },
@@ -17,67 +17,65 @@ export function generateFastfetchSVG(stats: ProfileStats, forBrowser: boolean): 
     const languageToColor: { [key: string]: string } = {
         TypeScript: "#3178c6",
         JavaScript: "#f1e05a",
-        "C#": "#019226",
+        "C#": "#5d3dd6",
         Markdown: "#7c7c7c",
         Lua: "#000080",
         Other: "#a0a0a0",
         Python: "#3776ab",
         Java: "#b07219",
         CSS: "#663399",
-        HTML: "#E34C26"
+        HTML: "#E34C26",
+        QML: "#43cc53",
+        "C++": "#00599b"
     };
 
     const languagesPercent: { [language: string]: number } = {}
-    let totalCleaned = 0;
+    stats.linesByLanguage["Other"] = {additions: 0, deletions: 0};
+
     for (const [language, langStats] of Object.entries(stats.linesByLanguage)) {
+        if (language == "Other") continue; // skip and do after all others
         const total = langStats.additions + langStats.deletions;
-        const percentage = Math.floor(((total / stats.lines)* 100) + 0.5);
-        
-        if (percentage < 1 || language == 'Other') {
+        const percentage = (total / stats.lines) * 100;
+        if (percentage < 1.0) {
+            stats.linesByLanguage["Other"].additions += langStats.additions;
+            stats.linesByLanguage["Other"].deletions += langStats.deletions;
             delete stats.linesByLanguage[language];
         } else {
-            totalCleaned += total;
+            languagesPercent[language] = Math.floor(percentage + 0.5); // round to nearest full number
         }
     }
+    const otherTotal = stats.linesByLanguage["Other"].additions + stats.linesByLanguage["Other"].deletions;
+    const otherPercent = Math.floor(((otherTotal / stats.lines) * 100) + 0.5)
+    languagesPercent["Other"] = otherPercent;
 
-    delete stats.linesByLanguage["other"];
     const languagesPercentSorted: {color: string, percent: number, language: string}[] = [];
-    for (const [language, langStats] of Object.entries(stats.linesByLanguage)) {
-        const total = langStats.additions + langStats.deletions;
-        const percentage = Math.floor(((total / totalCleaned)* 100) + 0.5);
-        languagesPercent[language] = percentage;
-        languagesPercentSorted.push({color: languageToColor[language], percent: percentage, language});
+    for (const [language, percent] of Object.entries(languagesPercent)) {
+        languagesPercentSorted.push({percent, language, color: languageToColor[language]});
     }
-
     languagesPercentSorted.sort((a, b) => b.percent - a.percent);
+    console.log(languagesPercentSorted)
 
-    const sortedComplete: {color: string, percent: number, total: number, language: string}[] = []
-    let total = 0;
-    for (let i=0; i<languagesPercentSorted.length; i++) {
-        total += languagesPercentSorted[i].percent;
-        sortedComplete[i] = {color: languagesPercentSorted[i].color, percent: languagesPercentSorted[i].percent, total, language: languagesPercentSorted[i].language};
-    }
 
-    // MAX 40 CHARS ON THAT LINE
+    // Max 60 chars per line to stay in bounds, 40 on the first line because of label
     let mostUsedLanguagesStr = "";
-    let hasLanguagesWrapped = false;
-    for (let i=0; i<sortedComplete.length; i++) {
-        const languageString = `<tspan fill="${sortedComplete[i].color}">${sortedComplete[i].language}</tspan>: ${sortedComplete[i].percent}%`
+    let languagesLines = 1;
+    for (let i=0; i<languagesPercentSorted.length; i++) {
+        const languageString = `<tspan fill="${languagesPercentSorted[i].color}">${languagesPercentSorted[i].language}</tspan>: ${languagesPercentSorted[i].percent}%`
         const cleanLanguageString = languageString.replace(/<[^>]+>/g, '');
         const cleanMostUsedString = mostUsedLanguagesStr.replace(/<[^>]+>/g, '');
-        if (cleanMostUsedString.length + cleanLanguageString.length > 40 && !hasLanguagesWrapped) {
-            hasLanguagesWrapped = true;
-            mostUsedLanguagesStr += `</tspan></text><text x="0" y="34" class="base-text"><tspan class="base-text">`;
+        if (cleanMostUsedString.length + cleanLanguageString.length > (languagesLines == 1 ? 40 : 40+((languagesLines-1)*60))) {
+            languagesLines += 1;
+            mostUsedLanguagesStr += `</tspan></text><text x="0" y="${12 + (22 * (languagesLines-1))}" class="base-text"><tspan class="base-text">`;
         }
         mostUsedLanguagesStr += languageString;
-        if (i<sortedComplete.length-1) mostUsedLanguagesStr += ", ";
+        if (i<languagesPercentSorted.length-1) mostUsedLanguagesStr += ", ";
     }
     statRows.push({ label: "Most used languages", val: mostUsedLanguagesStr });
 
     const colorTheme = {
         top: ["#232627", "#ed003f", "#11d116", "#f67400", "#1d99f3", "#9b59b6", "#1abc9c", "#fcfcfc"],
         bottom: ["#7f8c8d", "#c0392b", "#1cdc9a", "#fdbc4b", "#3daee9", "#8e44ad", "#16a085", "#ffffff"]
-    }
+    };
 
 
     return [`<g>
@@ -105,7 +103,7 @@ export function generateFastfetchSVG(stats: ProfileStats, forBrowser: boolean): 
             `).join('')}
 
             <!-- Color Theme -->
-            <g transform="translate(0, ${hasLanguagesWrapped ? "242" : "220"})">
+            <g transform="translate(0, ${198 + (languagesLines * 22)})">
                 ${colorTheme.top.map((color, i) =>
                     `<rect x="${i*20}" y="0" width="20" height="20" fill="${color}" />`
                 )}
@@ -115,13 +113,13 @@ export function generateFastfetchSVG(stats: ProfileStats, forBrowser: boolean): 
             </g>
         </g>
     </g>
-    `, hasLanguagesWrapped];
+    `, languagesLines];
 }
 
 export function generateTerminalSVG(stats: ProfileStats): string {
-    const [statsSvg, hasWrapped] = generateFastfetchSVG(stats, false);
+    const [statsSvg, languagesLines] = generateFastfetchSVG(stats, false);
 
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="700" viewBox="0 0 800 700" role="img">
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800" role="img">
     <title>Github Stats</title>
     
     <style>
@@ -131,7 +129,7 @@ export function generateTerminalSVG(stats: ProfileStats): string {
     </style>
 
     <!-- Empty Terminal with colored Header -->
-    <rect x="0.5" y="0.5" width="799" height="699" rx="6" fill="#232627" stroke="#30363d" stroke-width="1"/>
+    <rect x="0.5" y="0.5" width="799" height="799" rx="6" fill="#232627" stroke="#30363d" stroke-width="1"/>
     <path d="M7 1h786c3.314 0 6 2.686 6 6v59H1V7c0-3.314 2.686-6 6-6z" fill="#202326"/>
 
     <!-- Title bar -->
@@ -163,7 +161,7 @@ export function generateTerminalSVG(stats: ProfileStats): string {
 
     <!-- Empty terminal -->
     <path d="M1 67h798v626c0 3.314-2.686 6-6 6H7c-3.314 0-6-2.686-6-6z" fill="#232627"/>
-    <rect x="0.5" y="0.5" width="799" height="699" rx="6" fill="none" stroke="#30363d" stroke-width="1"/>
+    <rect x="0.5" y="0.5" width="799" height="799" rx="6" fill="none" stroke="#30363d" stroke-width="1"/>
 
     <!-- fastfetch command -->
     <text x="15" y="84" class="base-text"><tspan class="host">loki@github</tspan>:<tspan class="text-blue">~</tspan>$ fastfetch</text>
@@ -171,9 +169,9 @@ export function generateTerminalSVG(stats: ProfileStats): string {
     ${statsSvg}
 
     <!-- LS command -->
-    <text x="15" y="${hasWrapped ? "420" : "398"}" class="base-text"><tspan class="host">loki@github</tspan>:<tspan class="text-blue">~</tspan>$ ls</text>
+    <text x="15" y="${376 + (languagesLines * 22)}" class="base-text"><tspan class="host">loki@github</tspan>:<tspan class="text-blue">~</tspan>$ ls</text>
 
-    <g transform="translate(15, ${hasWrapped ? "440" : "418"})">
+    <g transform="translate(15, ${396 + (languagesLines * 22)})">
         ${(() => {
             const lsOutput = generateLsOutput(stats.publicReposLs, false);
             const lsContribOutput = generateLsOutput(stats.contributedReposLs, false);

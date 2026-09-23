@@ -8,6 +8,7 @@ const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
 
 function getLanguageFromExtension(filePath: string): string {
+    if (filePath.toLowerCase().endsWith("package-lock.json")) return 'other';
     const ext = filePath.split('.').pop()?.toLowerCase() || 'unknown';
     
     const languageMap: { [key: string]: string } = {
@@ -20,6 +21,7 @@ function getLanguageFromExtension(filePath: string): string {
         py: 'Python',
         java: 'Java',
         cpp: 'C++',
+        h: 'C++', // could also be C, but c++ is more likely in my case
         c: 'C',
         cs: 'C#',
         go: 'Go',
@@ -120,72 +122,80 @@ async function fetchRepoCommitLines(owner: string, name: string, emails: string[
     
     for (let i=0; i<branches.length; i++) {
         const branch = branches[i];
-    let hasNextPage = true;
-    let cursor: string | null = null;
+        let hasNextPage = true;
+        let cursor: string | null = null;
 
-    while (hasNextPage) {
+        while (hasNextPage) {
             const response: GraphQLCommits = await octokit.graphql<GraphQLCommits>(
-            `
+                `
                 query ($owner: String!, $name: String!, $emails: [String!]!, $cursor: String, $branch: String!) {
-                repository(owner: $owner, name: $name) {
+                    repository(owner: $owner, name: $name) {
                         ref(qualifiedName: $branch) {
-                        target {
-                            ... on Commit {
+                            target {
+                                ... on Commit {
                                     history(first: 100 after: $cursor, author: { emails: $emails }) {
-                                    pageInfo {
-                                        hasNextPage
-                                        endCursor
-                                    }
-                                    nodes {
-                                        oid
-                                        additions
-                                        deletions
+                                        pageInfo {
+                                            hasNextPage
+                                            endCursor
+                                        }
+                                        nodes {
+                                            oid
+                                            additions
+                                            deletions
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-            }
-            `,
+                `,
                 { owner, name, emails, cursor, branch: `refs/heads/${branch}` }
-        );
+            );
 
             const history = response.repository.ref.target.history
-        if (!history) break;
+            if (!history) break;
 
-        for (const commit of history.nodes) {
+            for (const commit of history.nodes) {
 
-            // Fetch file details for this commit using REST API
-            try {
-                const commitDetails = await octokit.rest.repos.getCommit({
-                    owner,
-                    repo: name,
-                    ref: commit.oid,
-                });
+                // Fetch file details for this commit using REST API
+                try {
+                    const commitDetails = await octokit.rest.repos.getCommit({
+                        owner,
+                        repo: name,
+                        ref: commit.oid,
+                    });
                     if (commitMap.get(commitDetails.data.sha) || (owner.toLowerCase() === "lokileiche" && commitDetails.data.commit.message.startsWith("Merge branch '"))) {
-                    continue;
-                }
-                commitMap.set(commitDetails.data.sha, true);
-                additions += commit.additions;
-                deletions += commit.deletions;
-
-                for (const file of commitDetails.data.files || []) {
-                    const language = getLanguageFromExtension(file.filename);
-                    if (!byLanguage[language]) {
-                        byLanguage[language] = { additions: 0, deletions: 0 };
+                        continue;
                     }
-                    byLanguage[language].additions += file.additions || 0;
-                    byLanguage[language].deletions += file.deletions || 0;
-                }
-            } catch (error) {
-                // If we can't fetch commit details, skip it
-                console.error(`Failed to fetch commit ${commit.oid} for ${owner}/${name}`);
-            }
-        }
+                    commitMap.set(commitDetails.data.sha, true);
+                    additions += commit.additions;
+                    deletions += commit.deletions;
 
-        hasNextPage = history.pageInfo.hasNextPage;
-        cursor = history.pageInfo.endCursor;
+                    for (const file of commitDetails.data.files || []) {
+                        const language = getLanguageFromExtension(file.filename);
+                        if (!byLanguage[language]) {
+                            byLanguage[language] = { additions: 0, deletions: 0 };
+                        }
+                        byLanguage[language].additions += file.additions || 0;
+                        byLanguage[language].deletions += file.deletions || 0;
+                    }
+                } catch (error) {
+                    // If we can't fetch commit details, skip it
+                    console.error(`Failed to fetch commit ${commit.oid} for ${owner}/${name}`);
+                }
+            }
+
+            hasNextPage = history.pageInfo.hasNextPage;
+            cursor = history.pageInfo.endCursor;
+        }
+    }
+
+    // remove others cause mostly auto-generated (like package-lock.json) or irrelevant like config files
+    if (byLanguage["other"]) {
+        additions -= byLanguage["other"].additions || 0;
+        deletions -= byLanguage["other"].deletions || 0;
+        delete byLanguage["other"];
     }
 
     return { additions, deletions, byLanguage, commitMap };
